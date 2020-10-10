@@ -1,2 +1,2 @@
-# py-osc-obs
+# obsosc-py
 Talk to OBS via OSC
