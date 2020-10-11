@@ -1,4 +1,4 @@
-# py-osc-obs
+# obsosc-py
 Talk to [OBS](https://obsproject.com/) via [OSC](http://opensoundcontrol.org/spec-1_0)
 
 ## Acknowledgements
