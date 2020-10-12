@@ -3,38 +3,22 @@
 
 import argparse
 import logging
-import sys
 import os
+import sys
+import threading
+
+from dotenv import load_dotenv
+from obswebsocket import obsws, requests, events
 from pythonosc import dispatcher
 from pythonosc import osc_server
 
 logging.basicConfig(level=logging.INFO)
 
 sys.path.append('../')
-from obswebsocket import obsws, requests  # noqa: E402
 
-from dotenv import load_dotenv
-load_dotenv()
-
-host = os.getenv("HOST") or "localhost"
-port = os.getenv("PORT") or 4444
-password = os.getenv("PASSWORD") or "put_your_password_here"
-
-print("Talking to OBS at '{0}:{1}'".format(host, port, password))
-
-ws = obsws(host, port, password)
-ws.connect()
-
-ScenesNames = []
-SceneSources = []
-
+SceneNames = []
 TransitionNames = []
-TransitionSources = []
-
-
-def sourceSwitch(source_name, scene, switch):
-    ws.call(requests.SetSceneItemProperties(source_name, scene, visible=switch))
-
+CurrentScene = ""
 
 def is_integer(v):
     try:
@@ -43,37 +27,86 @@ def is_integer(v):
     except ValueError:
         return False;
 
+#
+# Events that happened in OBS
+#
+
+def on_event(message):
+    print(u"Got message: {}".format(message))
+
+def on_switch(message):
+    global CurrentScene
+    CurrentScene = message.getSceneName()
+    print(u"You changed the scene to {}".format(CurrentScene))
+
+def on_source_renamed(message):
+    print(u"You change the name of a scene from '{0}' to '{1}'".format(message.getPreviousname(), message.getNewname()))
+    scene_index = SceneNames.index(message.getPreviousname())
+    SceneNames[scene_index] = message.getNewname()
+
+def on_transition_list_changed(message):
+    print(u"Something changed in the transitions... new transitions")
+    read_transitions_in_thread()
+
+def on_source_created(message):
+    print(u"You created new scene '{0}'".format(message.getSourcename()))
+    read_scenes_in_thread()
+
+def on_source_destroyed(message):
+    print(u"You destroyed new scene '{0}'".format(message.getSourcename()))
+    read_scenes_in_thread()
+
+def on_source_order_changed(message):
+    print(u"You destroyed new scene '{0}'".format(message.getSourcename()))
+    read_scenes_in_thread()
+
+def read_transitions_in_thread():
+    t = threading.Thread(target=read_transitions)
+    t.start()
+
+def read_screnes_in_thread():
+    t = threading.Thread(target=read_scenes)
+    t.start()
+
+#
+# Requests from OCS client
+#
 
 def scene_switch(unused_addr, args, oscValue):
     try:
         if (is_integer(oscValue)):
-            print(
-                "CMD = '{0}' INDEX = {1} OBS SCENE NAME = '{2}'".format(args[0], oscValue, ScenesNames[int(oscValue)]))
-            ws.call(requests.SetCurrentScene(ScenesNames[int(oscValue)]))
+            scene_name = SceneNames[int(oscValue)]
         else:
-            print("OSC Value '{0}' cannot be converted to an integer.".format(oscValue))
+            scene_name = oscValue
+
+        print("{0} '{1}'".format(args[0], scene_name))
+        ws.call(requests.SetCurrentScene(scene_name))
+
     except:
         pass
 
-def transition_switch(unused_addr, args, oscValue, timeValue=-1):
-    print("Transition: '{0}', time: '{1}'".format(oscValue, timeValue))
+
+def transition_switch(unused_addr, args, oscValue, timeValue = -1):
     try:
         if (is_integer(oscValue)):
-            if (int(timeValue) >= 0):
-                print("CMD = '{0}' INDEX = {1} OBS TRANSITION NAME = '{2}', TIME = '{3}'"
-                      .format(args[0], oscValue, TransitionNames[int(oscValue)], timeValue))
-                ws.call(requests.SetTransitionDuration(int(timeValue)))
-                ws.call(requests.SetCurrentTransition(TransitionNames[int(oscValue)]))
-            else:
-                print("CMD = '{0}' INDEX = {1} OBS TRANSITION NAME = '{2}'".format(args[0], oscValue,
-                                                                                   TransitionNames[int(oscValue)]))
-                ws.call(requests.SetCurrentTransition(TransitionNames[int(oscValue)]))
-
+            transition_name = TransitionNames[int(oscValue)]
         else:
-            print("OSC Value '{0}' cannot be converted to an integer.".format(oscValue))
+            transition_name = oscValue
+
+        if (is_integer(timeValue) and int(timeValue) >= 0):
+            print("{0} '{1}' {2}".format(args[0], transition_name, timeValue))
+            ws.call(requests.SetTransitionDuration(int(timeValue)))
+            ws.call(requests.SetCurrentTransition(transition_name))
+        else:
+            print("{0} '{1}'".format(args[0], transition_name))
+            ws.call(requests.SetCurrentTransition(transition_name))
+
     except:
         pass
 
+#
+# Get states from OBS
+#
 
 def list_scenes(unused_addr, args):
     scenes = ws.call(requests.GetSceneList())
@@ -83,7 +116,6 @@ def list_scenes(unused_addr, args):
         print("{0}: '{1}".format(count, name))
         count += 1
 
-
 def list_transitions(unused_addr, args):
     transitions = ws.call(requests.GetTransitionList())
     count = 0
@@ -92,14 +124,9 @@ def list_transitions(unused_addr, args):
         print("{0}: '{1}".format(count, name))
         count += 1
 
-def read_names(unused_addr):
-
-    print("----------------------   SCENES    ----------------------")
-    scenes = ws.call(requests.GetSceneList())
-    for s in scenes.getScenes():
-        name = s['name']
-        print("Scene {0}: '{1}'".format(len(ScenesNames), name))
-        ScenesNames.append(name)  # Add every scene to a list of scenes
+def read_transitions():
+    global TransitionNames
+    TransitionNames = []
 
     print("---------------------- TRANSITIONS ----------------------")
     transitions = ws.call(requests.GetTransitionList())
@@ -108,24 +135,74 @@ def read_names(unused_addr):
         print("Transition {0}: '{1}'".format(len(TransitionNames), name))
         TransitionNames.append(name)  # Add every scene to a list of scenes
 
+def read_scenes():
+    global CurrentScene
+    global SceneNames
+
+    SceneNames = []
+
+    try:
+        print("----------------------   SCENES    ----------------------")
+        scenes = ws.call(requests.GetSceneList())
+
+        CurrentScene = scenes.getCurrentScene()
+        print("Current Scene: '{0}'".format(CurrentScene))
+        print()
+        for s in scenes.getScenes():
+            name = s['name']
+            print("Scene {0}: '{1}'".format(len(SceneNames), name))
+            SceneNames.append(name)  # Add every scene to a list of scenes
+    except:
+        pass
+
+def read_settings(unused_addr):
+    read_scenes()
+    read_transitions()
     print("---------------------------------------------------------")
 
 
+#
+# main
+#
 if __name__ == "__main__":
-    try:
-        read_names("")
+    load_dotenv()
 
-        # OSC SETTINGS
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--ip", default="127.0.0.1", help="The ip to listen on")
-        parser.add_argument("--port", type=int, default=5005, help="The port to listen on")
+    # OBS host / port / password - we are the client
+    obs_host = os.getenv("OBS_HOST") or "localhost"
+    obs_port = os.getenv("OBS_PORT") or 4444
+    obs_password = os.getenv("OBS_PASSWORD")
+
+    print("Talking to OBS at '{0}:{1}'".format(obs_host, obs_port, obs_password))
+
+    # OSC port / password - we are the server
+    ocs_host = os.getenv("OCS_HOST") or "127.0.0.1"
+    ocs_port = os.getenv("OCS_PORT") or 5005
+    ocs_password = os.getenv("OCS_PASSWORD")        # not used yet
+
+    # OSC SETTINGS
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ip", default=ocs_host, help="The ip to listen on")
+    parser.add_argument("--port", type=int, default=ocs_port, help="The port to listen on")
+
+    ws = obsws(obs_host, obs_port, obs_password)
+    ws.connect()
+
+    try:
+        read_settings("")
 
         args = parser.parse_args()  # parser for --ip --port arguments
         dispatcher = dispatcher.Dispatcher()
 
-        # update indices
-        dispatcher.map("/refresh", read_names)
+        ### listeners to OBS from the server ###
+        # ws.register(on_event)    # uncomment when you want to watch all events (useful when adding new ones)
+        ws.register(on_switch, events.SwitchScenes)
+        ws.register(on_source_renamed, events.SourceRenamed)
+        ws.register(on_transition_list_changed, events.TransitionListChanged)
+        ws.register(on_source_created, events.SourceCreated)
+        ws.register(on_source_destroyed, events.SourceDestroyed)
+        ws.register(on_source_order_changed, events.SourceOrderChanged)
 
+        ### listeners to OSC from the clients ###
         # list things in the terminal
         dispatcher.map("/scenes", list_scenes, "scenes")
         dispatcher.map("/transitions", list_transitions, "transitions")

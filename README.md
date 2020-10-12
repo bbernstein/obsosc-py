@@ -113,18 +113,27 @@ That info is important as it shows the index of each of the scenes and transitio
 
 ### Changing Scene
 
-So, if I want to change the scene to "Company Logo", I'll send the OCS command:
+So, if I want to change the scene to "Company logo", I'll send the OCS command:
+
+```
+/scene "Company logo"
+```
+
+Alternatively, I can use the index to reference the scene. One drawback is that
+if you change the order of scenes, it might not pick up the change. I recommend
+using the name to reference scenes.
 
 ```
 /scene 3
 ```
+
 
 ### Changing transition setting
 
 To change the next transition to happen as a 3000 millisecond Fade, I'd send this command:
 
 ```
-/transition 1 3000
+/transition "Fade" 3000
 ```
 
 Then all my subsequent scene changes will be 3-second fades.
@@ -132,17 +141,9 @@ Then all my subsequent scene changes will be 3-second fades.
 If I don't want to change the timing for the transition, I would just leave off that second parameter and the
 new transition will continue to be whatever was last set for transition time.
 
-### Refresh values
-
-If you change names or orders of any scenes or transitions, you can refresh the 
-indexes with commannd:
-
 ```
-/refresh
+/transition "Cut"
 ```
-
-At some point we can make that automatic anytime you make a change in OBS
-
 
 ### Setting up in Qlab:
 
