@@ -147,6 +147,11 @@ new transition will continue to be whatever was last set for transition time.
 
 ### Setting up in Qlab:
 
+
+**note: The OSC commands in the screenshots below are old. I am now recommending using *names* rather than indexes for 
+Scenes and Transitions. Also, all commands are *lowercase*, so instead of `/Transition 1 10000` it should be `/transition "Fade" 10000`. Also
+`/scene 3` should be `/scene "Company logo`**
+
 First set up network settings. Click the gear to see settings.
 
 ![](images/qlab-click-gear.png)
