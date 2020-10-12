@@ -102,3 +102,72 @@ Now you can send messages to OBS:
 
 `/transition <transition-index> <optional-milliseconds>`
 
+## Examples
+
+When you first start the app, your terminal window will look something like this 
+(probably with very different colors than this):
+
+![](images/start-term.png)
+
+That info is important as it shows the index of each of the scenes and transitions that you'll use in your commands.
+
+### Changing Scene
+
+So, if I want to change the scene to "Company Logo", I'll send the OCS command:
+
+```
+/scene 3
+```
+
+### Changing transition setting
+
+To change the next transition to happen as a 3000 millisecond Fade, I'd send this command:
+
+```
+/transition 1 3000
+```
+
+Then all my subsequent scene changes will be 3-second fades.
+
+If I don't want to change the timing for the transition, I would just leave off that second parameter and the
+new transition will continue to be whatever was last set for transition time.
+
+### Refresh values
+
+If you change names or orders of any scenes or transitions, you can refresh the 
+indexes with commannd:
+
+```
+/refresh
+```
+
+At some point we can make that automatic anytime you make a change in OBS
+
+
+### Setting up in Qlab:
+
+First set up network settings. Click the gear to see settings.
+
+![](images/qlab-click-gear.png)
+
+Set the Network settings so you are talking to port 5005 of localhost (or 127.0.0.1)
+
+![](images/qlab-network.png)
+
+Make a cue to set the next transition. In this example we are setting it up to be a 10 second fade.
+
+![](images/qlab-transition.png)
+
+One extra note: if you are planning on using the transition immediately, then you should set
+the duration of this cue to be at least 0.2 second so that OBS has time to make that change
+before it tries to change scenes. Keep that extra time in mind if the exact timing matters.
+Alternatively, you can change the transition time earlier so there's no extra
+sub-second delay needed.
+
+![](images/qlab-duration.png)
+
+For the scene change cue, just give the parameter of the scene index. 
+(note the first index is zero, so scene 3 is the fourth one)
+
+![](images/qlab-scene.png)
+

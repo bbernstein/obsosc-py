@@ -55,7 +55,6 @@ def scene_switch(unused_addr, args, oscValue):
     except:
         pass
 
-
 def transition_switch(unused_addr, args, oscValue, timeValue=-1):
     print("Transition: '{0}', time: '{1}'".format(oscValue, timeValue))
     try:
@@ -63,8 +62,8 @@ def transition_switch(unused_addr, args, oscValue, timeValue=-1):
             if (int(timeValue) >= 0):
                 print("CMD = '{0}' INDEX = {1} OBS TRANSITION NAME = '{2}', TIME = '{3}'"
                       .format(args[0], oscValue, TransitionNames[int(oscValue)], timeValue))
-                ws.call(requests.SetCurrentTransition(TransitionNames[int(oscValue)]))
                 ws.call(requests.SetTransitionDuration(int(timeValue)))
+                ws.call(requests.SetCurrentTransition(TransitionNames[int(oscValue)]))
             else:
                 print("CMD = '{0}' INDEX = {1} OBS TRANSITION NAME = '{2}'".format(args[0], oscValue,
                                                                                    TransitionNames[int(oscValue)]))
@@ -93,26 +92,32 @@ def list_transitions(unused_addr, args):
         print("{0}: '{1}".format(count, name))
         count += 1
 
+def read_names(unused_addr):
+
+    print("unused:{0}".format(unused_addr))
+
+    print("----------------------   SCENES    ----------------------")
+    scenes = ws.call(requests.GetSceneList())
+    for s in scenes.getScenes():
+        name = s['name']
+        print("Scene {0}: '{1}'".format(len(ScenesNames), name))
+        ScenesNames.append(name)  # Add every scene to a list of scenes
+
+    print("---------------------- TRANSITIONS ----------------------")
+    transitions = ws.call(requests.GetTransitionList())
+    for s in transitions.getTransitions():
+        name = s['name']
+        print("Transition {0}: '{1}'".format(len(TransitionNames), name))
+        TransitionNames.append(name)  # Add every scene to a list of scenes
+
+    print("---------------------------------------------------------")
+
 
 if __name__ == "__main__":
     try:
-        scenes = ws.call(requests.GetSceneList())
-        for s in scenes.getScenes():
-            name = s['name']
-            print("Scene {0}: '{1}'".format(len(ScenesNames), name))
-            ScenesNames.append(name)  # Add every scene to a list of scenes
+        read_names("")
 
-        print("CURRENT SCENES IN OBS:\n", ScenesNames)
-
-        transitions = ws.call(requests.GetTransitionList())
-        for s in transitions.getTransitions():
-            name = s['name']
-            print("Transition {0}: '{1}'".format(len(TransitionNames), name))
-            TransitionNames.append(name)  # Add every scene to a list of scenes
-
-        print("CURRENT TRANSITIONS IN OBS:\n", TransitionNames)
-
-        ### OSC SETTINGS
+        # OSC SETTINGS
         parser = argparse.ArgumentParser()
         parser.add_argument("--ip", default="127.0.0.1", help="The ip to listen on")
         parser.add_argument("--port", type=int, default=5005, help="The port to listen on")
@@ -120,10 +125,16 @@ if __name__ == "__main__":
         args = parser.parse_args()  # parser for --ip --port arguments
         dispatcher = dispatcher.Dispatcher()
 
-        dispatcher.map("/Transitions", list_transitions, "Transitions")
-        dispatcher.map("/Scenes", list_scenes, "Scenes")
-        dispatcher.map("/Scene", scene_switch, "Scene")  # OSC LISTENER
-        dispatcher.map("/Transition", transition_switch, "Transition")  # OSC LISTENER
+        # update indices
+        dispatcher.map("/refresh", read_names)
+
+        # list things in the terminal
+        dispatcher.map("/scenes", list_scenes, "scenes")
+        dispatcher.map("/transitions", list_transitions, "transitions")
+
+        # do things in OBS
+        dispatcher.map("/scene", scene_switch, "scene")  # OSC LISTENER
+        dispatcher.map("/transition", transition_switch, "transition")  # OSC LISTENER
 
         server = osc_server.ThreadingOSCUDPServer((args.ip, args.port), dispatcher)
         print("Serving on {}".format(server.server_address))
