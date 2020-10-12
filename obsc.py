@@ -94,8 +94,6 @@ def list_transitions(unused_addr, args):
 
 def read_names(unused_addr):
 
-    print("unused:{0}".format(unused_addr))
-
     print("----------------------   SCENES    ----------------------")
     scenes = ws.call(requests.GetSceneList())
     for s in scenes.getScenes():
